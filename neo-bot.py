@@ -463,7 +463,7 @@ class TranslationView(View):
             # エラー時の処理
             await interaction.followup.send("❌ 日本語翻訳に失敗しました", ephemeral=True)
 
-    @discord.ui.button(label="English", style=discord.ButtonStyle.secondary, custom_id="translate_to_english")
+    @discord.ui.button(label="English", style=discord.ButtonStyle.primary, custom_id="translate_to_english")
     async def english_button(self, interaction: discord.Interaction, button: Button):
         """英語翻訳ボタンがクリックされた時の処理"""
         # ボタンを無効化
