@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:zenn.dev)",
+      "WebSearch",
+      "Bash(curl:*)",
+      "Bash(python:*)",
+      "Bash(python3 -m py_compile:*)",
+      "Bash(git -C /Users/mic/Documents/private/source/DiscordTranslatorForBOFURIN status)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
