@@ -353,6 +353,79 @@ async def translate_to_japanese(text, source_lang=None):
             "error": f"翻訳エラー: {str(e)}"
         }
 
+# 英語翻訳専用関数（ボタン用）
+async def translate_to_english(text, source_lang=None):
+    """元のテキストを英語に翻訳する関数"""
+    try:
+        # 言語を自動判定
+        if not source_lang:
+            detected_lang = detect_language(text)
+        else:
+            detected_lang = source_lang
+
+        # DeepL APIで英語に翻訳
+        try:
+            params = {
+                "auth_key": DEEPL_TOKEN,
+                "text": text,
+                "target_lang": "EN"  # 英語
+            }
+
+            if len(text.strip()) > 3:
+                params["source_lang"] = detected_lang.upper()
+
+            response = requests.post(DEEPL_API_URL, data=params, timeout=10)
+
+            if response.status_code == 200:
+                response_json = response.json()
+                translated_text = response_json["translations"][0]["text"]
+                return {
+                    "success": True,
+                    "translated_text": translated_text,
+                    "source_lang": detected_lang,
+                    "target_lang": "EN",
+                    "service": "DeepL"
+                }
+            else:
+                # DeepLでエラー発生時はGoogle Translateにフォールバック
+                print(f"🔄 DeepL API エラー（{response.status_code}）- Google Translateにフォールバック")
+                result = google_translator.translate(text, dest="en", src=detected_lang)
+                return {
+                    "success": True,
+                    "translated_text": result.text,
+                    "source_lang": detected_lang,
+                    "target_lang": "EN",
+                    "service": "Google Translate"
+                }
+
+        except requests.exceptions.Timeout:
+            print("🔄 DeepL API タイムアウト - Google Translateにフォールバック")
+            result = google_translator.translate(text, dest="en", src=detected_lang)
+            return {
+                "success": True,
+                "translated_text": result.text,
+                "source_lang": detected_lang,
+                "target_lang": "EN",
+                "service": "Google Translate"
+            }
+        except requests.exceptions.RequestException as e:
+            print(f"🔄 DeepL API ネットワークエラー - Google Translateにフォールバック: {str(e)}")
+            result = google_translator.translate(text, dest="en", src=detected_lang)
+            return {
+                "success": True,
+                "translated_text": result.text,
+                "source_lang": detected_lang,
+                "target_lang": "EN",
+                "service": "Google Translate"
+            }
+
+    except Exception as e:
+        print(f"❌ 英語翻訳エラー: {str(e)}")
+        return {
+            "success": False,
+            "error": f"翻訳エラー: {str(e)}"
+        }
+
 # Viewクラス（ボタンを含む）
 class TranslationView(View):
     def __init__(self, original_text, source_lang):
@@ -360,7 +433,7 @@ class TranslationView(View):
         self.original_text = original_text
         self.source_lang = source_lang
 
-    @discord.ui.button(label="日本語に翻訳", style=discord.ButtonStyle.primary, custom_id="translate_to_japanese")
+    @discord.ui.button(label="日本語", style=discord.ButtonStyle.primary, custom_id="translate_to_japanese")
     async def japanese_button(self, interaction: discord.Interaction, button: Button):
         """日本語翻訳ボタンがクリックされた時の処理"""
         # ボタンを無効化
@@ -390,6 +463,36 @@ class TranslationView(View):
             # エラー時の処理
             await interaction.followup.send("❌ 日本語翻訳に失敗しました", ephemeral=True)
 
+    @discord.ui.button(label="English", style=discord.ButtonStyle.secondary, custom_id="translate_to_english")
+    async def english_button(self, interaction: discord.Interaction, button: Button):
+        """英語翻訳ボタンがクリックされた時の処理"""
+        # ボタンを無効化
+        button.disabled = True
+        await interaction.response.defer()
+
+        # 元のテキストを英語に翻訳
+        english_result = await translate_to_english(self.original_text, self.source_lang)
+
+        if english_result["success"]:
+            # 既存のEmbedを取得して英語訳を追加
+            original_embed = interaction.message.embeds[0]
+            current_description = original_embed.description
+
+            # 英語訳を追加
+            new_description = current_description + "\n🇺🇸： " + english_result["translated_text"]
+
+            # Embedを更新
+            updated_embed = discord.Embed(
+                description=new_description,
+                color=original_embed.color
+            )
+
+            # メッセージを編集（ボタン無効化とEmbed更新）
+            await interaction.message.edit(embed=updated_embed, view=self)
+        else:
+            # エラー時の処理
+            await interaction.followup.send("❌ 英語翻訳に失敗しました", ephemeral=True)
+
 # 起動時動作
 @client.event
 async def on_ready():
@@ -397,7 +500,7 @@ async def on_ready():
     print(f"📊 サーバー数: {len(client.guilds)}")
     print(f"🌍 全チャンネルで自動翻訳が有効です（中国語繁体字 ↔ 韓国語）")
     print(f"🔄 フォールバック: DeepL → Google Translate")
-    print(f"🇯🇵 日本語翻訳ボタン機能が有効です")
+    print(f"🇯🇵🇺🇸 日本語・英語翻訳ボタン機能が有効です")
 
     # ボタンの永続化（Bot再起動後も動作）
     # ダミーのViewを追加して、既存のボタンをリッスン
@@ -444,7 +547,7 @@ async def on_message(message):
         )
         help_embed.add_field(
             name="📝 機能",
-            value="• 中国語繁体字→韓国語\n• 韓国語→中国語繁体字\n• 日本語翻訳ボタン",
+            value="• 中国語繁体字→韓国語\n• 韓国語→中国語繁体字\n• 日本語・英語翻訳ボタン",
             inline=False
         )
         help_embed.add_field(
